@@ -90,14 +90,15 @@ remaining_color() {
 }
 
 # --- /effort level ---
-# Check CLAUDE_EFFORT env var first, then settings.json, default to "medium"
-effort_level=""
-if [ -n "${CLAUDE_EFFORT:-}" ]; then
-  effort_level="$CLAUDE_EFFORT"
-else
+# Priority: stdin JSON > CLAUDE_EFFORT env var > settings.json > default "medium"
+effort_level=$(echo "$input" | jq -r '.session.effort // .effort // empty' 2>/dev/null)
+if [ -z "$effort_level" ]; then
+  effort_level="${CLAUDE_EFFORT:-}"
+fi
+if [ -z "$effort_level" ]; then
   settings_file="$HOME/.claude/settings.json"
   if [ -f "$settings_file" ]; then
-    effort_level=$(jq -r '.effort // empty' "$settings_file" 2>/dev/null)
+    effort_level=$(jq -r '.effortLevel // .effort // empty' "$settings_file" 2>/dev/null)
   fi
 fi
 [ -z "$effort_level" ] && effort_level="medium"
@@ -395,10 +396,11 @@ if [ -n "$session_cost" ]; then
       else if (c+0 >= 0.10) print "yellow"
       else print "green"
     }')
+    STRIKE='\033[9m'
     case "$cost_color" in
-      red)    line2+=$(printf "💰 ${RED}${cost_display}${RESET}") ;;
-      yellow) line2+=$(printf "💰 ${YELLOW}${cost_display}${RESET}") ;;
-      *)      line2+=$(printf "💰 ${GREEN}${cost_display}${RESET}") ;;
+      red)    line2+=$(printf "💰 ${STRIKE}${RED}${cost_display}${RESET}") ;;
+      yellow) line2+=$(printf "💰 ${STRIKE}${YELLOW}${cost_display}${RESET}") ;;
+      *)      line2+=$(printf "💰 ${STRIKE}${GREEN}${cost_display}${RESET}") ;;
     esac
     line2+=$(printf "${DIM} | ${RESET}")
   fi
