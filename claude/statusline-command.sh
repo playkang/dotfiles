@@ -193,6 +193,32 @@ detect_compression() {
 session_id_val=$(echo "$input" | jq -r '.session_id // empty')
 compression_detected=$(detect_compression "$transcript_path" "$used" "$session_id_val")
 
+# --- Autocompact threshold calculation ---
+# Read CLAUDE_AUTOCOMPACT_PCT_OVERRIDE from settings.json env block, fallback to 95
+autocompact_threshold=""
+settings_file_env="$HOME/.claude/settings.json"
+if [ -f "$settings_file_env" ]; then
+  autocompact_threshold=$(jq -r '.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE // empty' "$settings_file_env" 2>/dev/null)
+fi
+[ -z "$autocompact_threshold" ] && autocompact_threshold="95"
+
+# Calculate gap between current used% and autocompact threshold
+compact_threshold_suffix=""
+if [ -n "$used" ] && [ "${compression_detected:-0}" != "1" ]; then
+  used_int_for_compact=$(printf '%.0f' "$used")
+  gap=$(( autocompact_threshold - used_int_for_compact ))
+  if [ "$gap" -le 0 ]; then
+    # Already past threshold (compress imminent or in progress)
+    compact_threshold_suffix=$(printf " ${RED}🗜️ !압축임박${RESET}")
+  elif [ "$gap" -le 5 ]; then
+    compact_threshold_suffix=$(printf " ${RED}🗜️ -%d%%${RESET}" "$gap")
+  elif [ "$gap" -le 10 ]; then
+    compact_threshold_suffix=$(printf " ${YELLOW}🗜️ -%d%%${RESET}" "$gap")
+  else
+    compact_threshold_suffix=$(printf " ${DIM}🗜️ -%d%%${RESET}" "$gap")
+  fi
+fi
+
 # --- Session cost calculation ---
 # Uses transcript_path JSONL to sum token usage with per-model pricing
 calc_session_cost() {
@@ -323,7 +349,7 @@ if [ -n "$used" ]; then
   if [ "${compression_detected:-0}" = "1" ]; then
     compress_suffix=$(printf " ${CYAN}🗜️ compressed${RESET}")
   fi
-  line2+=$(printf "📊 ${color}${bar} ${used_int}%% used${RESET}${rem_suffix}${compress_suffix}")
+  line2+=$(printf "📊 ${color}${bar} ${used_int}%% used${RESET}${rem_suffix}${compress_suffix}${compact_threshold_suffix}")
   line2+=$(printf "${DIM} | ${RESET}")
 else
   # No data yet (conversation not started)
@@ -387,17 +413,31 @@ if [ -n "$git_commits_today" ] && [ "$git_commits_today" -gt 0 ] 2>/dev/null; th
   line2+=$(printf "${DIM} | ${RESET}")
 fi
 
-# Session token usage (cumulative) - appended to line 2
+# Session token usage: last turn + cumulative total
 total_in=$(echo "$input" | jq -r '.context_window.total_input_tokens // empty')
 total_out=$(echo "$input" | jq -r '.context_window.total_output_tokens // empty')
+last_in=$(echo "$input" | jq -r '.context_window.current_usage.input_tokens // empty')
+last_out=$(echo "$input" | jq -r '.context_window.current_usage.output_tokens // empty')
+
+format_tokens() {
+  local n="$1"
+  if [ "$n" -ge 1000 ] 2>/dev/null; then
+    printf '%sk' "$(( n / 1000 ))"
+  else
+    printf '%s' "$n"
+  fi
+}
+
 if [ -n "$total_in" ] && [ -n "$total_out" ]; then
   total_tokens=$(( total_in + total_out ))
   if [ "$total_tokens" -gt 0 ]; then
-    if [ "$total_tokens" -ge 1000 ]; then
-      total_k=$(( total_tokens / 1000 ))
-      line2+=$(printf "${DIM}${total_k}k tok${RESET}")
+    total_fmt=$(format_tokens "$total_tokens")
+    if [ -n "$last_in" ] && [ -n "$last_out" ]; then
+      last_tokens=$(( last_in + last_out ))
+      last_fmt=$(format_tokens "$last_tokens")
+      line2+=$(printf "💬 ${WHITE}${last_fmt} token${RESET} ${DIM}/ ${total_fmt} token 누적${RESET}")
     else
-      line2+=$(printf "${DIM}${total_tokens} tok${RESET}")
+      line2+=$(printf "💬 ${DIM}${total_fmt} token${RESET}")
     fi
   fi
 fi
