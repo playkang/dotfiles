@@ -351,8 +351,7 @@ if [ -n "$used" ]; then
   if [ "${compression_detected:-0}" = "1" ]; then
     compress_suffix=$(printf " ${CYAN}🗜️ compressed${RESET}")
   fi
-  left_int=$(( 100 - used_int ))
-  line2+=$(printf "🔋 ${color}${bar} ${left_int}%% left${RESET}${rem_suffix}${compress_suffix}")
+  line2+=$(printf "🔋 ${color}${bar} ${used_int}%% used${RESET}${rem_suffix}${compress_suffix}")
   line2+=$(printf '%b' "$compact_threshold_suffix")
   line2+=$(printf "${DIM} | ${RESET}")
 else
