@@ -208,15 +208,16 @@ compact_threshold_suffix=""
 if [ -n "$used" ] && [ "${compression_detected:-0}" != "1" ]; then
   used_int_for_compact=$(printf '%.0f' "$used")
   gap=$(( autocompact_threshold - used_int_for_compact ))
-  if [ "$gap" -le 0 ]; then
-    # Already past threshold (compress imminent or in progress)
-    compact_threshold_suffix=$(printf " ${RED}🗜️ !압축임박${RESET}")
-  elif [ "$gap" -le 5 ]; then
-    compact_threshold_suffix=$(printf " ${RED}🗜️ -%d%%${RESET}" "$gap")
-  elif [ "$gap" -le 10 ]; then
-    compact_threshold_suffix=$(printf " ${YELLOW}🗜️ -%d%%${RESET}" "$gap")
+  remaining_pct=$(( 100 - used_int_for_compact ))
+  compact_pct=$(( used_int_for_compact * 100 / autocompact_threshold ))
+  if [ "$compact_pct" -ge 100 ]; then
+    compact_threshold_suffix=" ${RED}🧹 100% /compact!${RESET}"
+  elif [ "$compact_pct" -ge 90 ]; then
+    compact_threshold_suffix=" ${RED}🧹 ${compact_pct}% /compact!${RESET}"
+  elif [ "$compact_pct" -ge 80 ]; then
+    compact_threshold_suffix=" ${YELLOW}🧹 ${compact_pct}%${RESET}"
   else
-    compact_threshold_suffix=$(printf " ${DIM}🗜️ -%d%%${RESET}" "$gap")
+    compact_threshold_suffix=" ${DIM}🧹 ${compact_pct}%${RESET}"
   fi
 fi
 
@@ -350,7 +351,8 @@ if [ -n "$used" ]; then
   if [ "${compression_detected:-0}" = "1" ]; then
     compress_suffix=$(printf " ${CYAN}🗜️ compressed${RESET}")
   fi
-  line2+=$(printf "📊 ${color}${bar} ${used_int}%% used${RESET}${rem_suffix}${compress_suffix}${compact_threshold_suffix}")
+  line2+=$(printf "🔋 ${color}${bar} ${used_int}%% used${RESET}${rem_suffix}${compress_suffix}")
+  line2+=$(printf '%b' "$compact_threshold_suffix")
   line2+=$(printf "${DIM} | ${RESET}")
 else
   # No data yet (conversation not started)
