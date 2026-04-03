@@ -360,11 +360,35 @@ fi
 
 # Rate limits (5h and 7d)
 five=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
+five_resets=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
 week=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
+week_resets=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
+
+# Format remaining time until reset
+format_reset_time() {
+  local resets_at="$1"
+  [ -z "$resets_at" ] && return
+  local now_sec remaining
+  now_sec=$(date +%s)
+  remaining=$(( resets_at - now_sec ))
+  [ "$remaining" -le 0 ] && printf '곧' && return
+  local days=$(( remaining / 86400 ))
+  local hours=$(( (remaining % 86400) / 3600 ))
+  local mins=$(( (remaining % 3600) / 60 ))
+  if [ "$days" -ge 1 ]; then
+    printf '%dd %dh' "$days" "$hours"
+  elif [ "$hours" -ge 1 ]; then
+    printf '%dh %dm' "$hours" "$mins"
+  else
+    printf '%dm' "$mins"
+  fi
+}
+
 if [ -n "$five" ] || [ -n "$week" ]; then
   line2+=$(printf "⚡ ")
   if [ -n "$five" ]; then
     five_int=$(printf '%.0f' "$five")
+    five_reset_str=$(format_reset_time "$five_resets")
     if [ "$five_int" -ge 90 ]; then
       line2+=$(printf "${RED}5h:${five_int}%%${RESET}")
     elif [ "$five_int" -ge 70 ]; then
@@ -372,9 +396,11 @@ if [ -n "$five" ] || [ -n "$week" ]; then
     else
       line2+=$(printf "5h:${five_int}%%")
     fi
+    [ -n "$five_reset_str" ] && line2+=$(printf "${DIM}(~${five_reset_str})${RESET}")
   fi
   if [ -n "$week" ]; then
     week_int=$(printf '%.0f' "$week")
+    week_reset_str=$(format_reset_time "$week_resets")
     [ -n "$five" ] && line2+=$(printf "${DIM} ${RESET}")
     if [ "$week_int" -ge 90 ]; then
       line2+=$(printf "${RED}7d:${week_int}%%${RESET}")
@@ -383,6 +409,7 @@ if [ -n "$five" ] || [ -n "$week" ]; then
     else
       line2+=$(printf "7d:${week_int}%%")
     fi
+    [ -n "$week_reset_str" ] && line2+=$(printf "${DIM}(~${week_reset_str})${RESET}")
   fi
   line2+=$(printf "${DIM} | ${RESET}")
 fi
