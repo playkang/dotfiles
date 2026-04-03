@@ -316,7 +316,7 @@ fi
 # Effort
 ecolor=$(effort_color "$effort_level")
 eicon=$(effort_icon "$effort_level")
-line1+=$(printf "${eicon} ${ecolor}${effort_level}${RESET}")
+line1+=$(printf "${eicon} ${ecolor}${effort_level}${RESET} ${DIM}/effort /config${RESET}")
 line1+=$(printf "${DIM} | ${RESET}")
 
 # ⏰ Time
